@@ -1,19 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const mongoose = require("mongoose");
-const Joi = require("@hapi/joi");
-
-const genreSchema = mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-    minlength: [4, "Mininum length should be 4 charectors.."],
-    maxlength: 20,
-    unique: [true]
-  }
-});
-
-const Genre = mongoose.model("Genre", genreSchema);
+const { Genre, validate } = require("../models/genre");
 
 router.get("/", async (req, res) => {
   const genres = await Genre.find().sort("name");
@@ -21,25 +8,19 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const { error, value } = validateGenre(req.body);
+  const { error, value } = validate(req.body);
   if (error) return res.status(400).send(error.details[0].message);
 
-  let genre = new Genre({
-    name: req.body.name
+  const genre = new Genre({
+    name: req.body.name,
   });
+  await genre.save();
 
-  try {
-    genre = await genre.save();
-    if (!genre) return res.status(400).send("Record not saved..!");
-    res.send(genre);
-  } catch (ex) {
-    console.log(ex.message);
-    for (field in ex.errors) res.status(400).send(ex.errors[field].message);
-  }
+  res.send(genre);
 });
 
 router.get("/:id", async (req, res) => {
-  const genre = await Genre.find({ _id: req.params.id });
+  const genre = await Genre.findById(req.params.id);
   if (!genre)
     return res.status(404).send("The genre with the given Id was not found!");
 
@@ -47,12 +28,15 @@ router.get("/:id", async (req, res) => {
 });
 
 router.put("/:id", async (req, res) => {
+  const { error, value } = validate(req.body);
+  if (error) return res.status(400).send(error.details[0].message);
+
   let genre = await Genre.findByIdAndUpdate(
     { _id: req.params.id },
     {
       $set: {
-        name: req.body.name
-      }
+        name: req.body.name,
+      },
     },
     { new: true }
   );
@@ -70,15 +54,5 @@ router.delete("/:id", async (req, res) => {
 
   res.send(genre);
 });
-
-const validateGenre = genre => {
-  const schema = Joi.object({
-    name: Joi.string()
-      .min(3)
-      .required()
-  });
-
-  return schema.validate(genre);
-};
 
 module.exports = router;
